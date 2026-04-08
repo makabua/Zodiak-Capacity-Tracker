@@ -70,7 +70,7 @@ function FitBounds({ entries }) {
 
   useEffect(() => {
     if (entries.length === 0) {
-      map.setView([39.8, -98.5], 4)
+      map.setView([39.8, -98.5], 3)
       prevCountRef.current = 0
       return
     }
@@ -101,7 +101,7 @@ export default function MapView({ entries, onSelect, selectedId }) {
   return (
     <MapContainer
       center={[39.8, -98.5]}
-      zoom={4}
+      zoom={3}
       className="w-full h-full rounded-xl"
       style={{ minHeight: '400px' }}
       zoomControl={true}
