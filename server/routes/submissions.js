@@ -1,22 +1,17 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
-const db = require('../db');
+const pool = require('../db');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 function buildTransporter() {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return null;
-  }
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
 }
 
@@ -30,22 +25,18 @@ router.post('/', async (req, res) => {
   if (!['open', 'enclosed'].includes(truck_type)) {
     return res.status(400).json({ error: 'Invalid truck type.' });
   }
-  if (parseInt(trucks_available, 10) < 1) {
-    return res.status(400).json({ error: 'Trucks available must be at least 1.' });
-  }
 
-  const result = db
-    .prepare(
+  try {
+    const { rows } = await pool.query(
       `INSERT INTO submissions (carrier_name, company_name, trucks_available, truck_type, city, state, available_from, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(carrier_name, company_name, parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '');
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [carrier_name, company_name, parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '']
+    );
 
-  // Email notification (best-effort — never fails the request)
-  const transporter = buildTransporter();
-  if (transporter) {
-    transporter
-      .sendMail({
+    // Email notification (best-effort)
+    const transporter = buildTransporter();
+    if (transporter) {
+      transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to: 'jd@zodiaktls.com',
         subject: `New Capacity — ${company_name} (${trucks_available} ${truck_type} truck${trucks_available > 1 ? 's' : ''})`,
@@ -56,52 +47,69 @@ router.post('/', async (req, res) => {
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Carrier Name</td><td style="padding:6px 12px">${carrier_name}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Company</td><td style="padding:6px 12px">${company_name}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Trucks Available</td><td style="padding:6px 12px">${trucks_available}</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px" style="text-transform:capitalize">${truck_type}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px">${truck_type}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Location</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Available From</td><td style="padding:6px 12px">${available_from}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Notes</td><td style="padding:6px 12px">${notes || '—'}</td></tr>
             </table>
           </div>`,
-      })
-      .catch((err) => console.error('[email] failed to send:', err.message));
-  } else {
-    console.warn('[email] SMTP not configured — skipping notification');
-  }
+      }).catch((err) => console.error('[email] failed:', err.message));
+    }
 
-  res.status(201).json({ id: result.lastInsertRowid, message: 'Submission received!' });
+    res.status(201).json({ id: rows[0].id, message: 'Submission received!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save submission.' });
+  }
 });
 
 // ── Protected: list all submissions ─────────────────────────────────────────
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   const { status, sort } = req.query;
-  let query = 'SELECT * FROM submissions';
-  const params = [];
+  const orderBy = sort === 'location' ? 'ORDER BY state, city' : 'ORDER BY created_at DESC';
 
-  if (status && status !== 'all') {
-    query += ' WHERE status = ?';
-    params.push(status);
+  try {
+    let result;
+    if (status && status !== 'all') {
+      result = await pool.query(`SELECT * FROM submissions WHERE status = $1 ${orderBy}`, [status]);
+    } else {
+      result = await pool.query(`SELECT * FROM submissions ${orderBy}`);
+    }
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch submissions.' });
   }
-
-  query += sort === 'location' ? ' ORDER BY state, city' : ' ORDER BY created_at DESC';
-
-  res.json(db.prepare(query).all(...params));
 });
 
 // ── Protected: update status ─────────────────────────────────────────────────
-router.patch('/:id/status', auth, (req, res) => {
+router.patch('/:id/status', auth, async (req, res) => {
   const { status } = req.body;
   if (!['new', 'contacted', 'archived'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
-  const info = db.prepare('UPDATE submissions SET status = ? WHERE id = ?').run(status, req.params.id);
-  if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
-  res.json({ success: true });
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE submissions SET status = $1 WHERE id = $2',
+      [status, req.params.id]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update status.' });
+  }
 });
 
 // ── Protected: delete submission ─────────────────────────────────────────────
-router.delete('/:id', auth, (req, res) => {
-  db.prepare('DELETE FROM submissions WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM submissions WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete submission.' });
+  }
 });
 
 module.exports = router;
