@@ -2,7 +2,7 @@
 cmds = ["npm install", "npm install --prefix client"]
 
 [phases.build]
-cmds = ["npm run build --prefix client"]
+cmds = ["npm run build --prefix client", "ls -la client/dist"]
 
 [start]
 cmd = "npm start"
