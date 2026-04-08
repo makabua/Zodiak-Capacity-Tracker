@@ -1,8 +1,13 @@
 const { Pool } = require('pg');
 
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is not set.');
+  process.exit(1);
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
 });
 
 pool.query(`
@@ -19,8 +24,10 @@ pool.query(`
     status        TEXT DEFAULT 'new',
     created_at    TIMESTAMPTZ DEFAULT NOW()
   )
-`).catch((err) => {
-  console.error('DB init error:', err.message);
+`).then(() => {
+  console.log('Database ready.');
+}).catch((err) => {
+  console.error('DB init error:', err);
   process.exit(1);
 });
 
