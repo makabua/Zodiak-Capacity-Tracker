@@ -2,6 +2,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const pool = require('../db');
 const auth = require('../middleware/auth');
+const { getCoordinates } = require('../geocode');
 
 const router = express.Router();
 
@@ -27,10 +28,14 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    // Geocode city/state (best-effort, non-blocking for response)
+    const coords = await getCoordinates(city, state).catch(() => null);
+
     const { rows } = await pool.query(
-      `INSERT INTO submissions (carrier_name, company_name, trucks_available, truck_type, city, state, available_from, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [carrier_name, company_name, parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '']
+      `INSERT INTO submissions (carrier_name, company_name, trucks_available, truck_type, city, state, available_from, notes, latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [carrier_name, company_name, parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '',
+       coords ? coords.lat : null, coords ? coords.lng : null]
     );
 
     // Email notification (best-effort)
@@ -109,6 +114,36 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete submission.' });
+  }
+});
+
+// ── Protected: backfill geocoding for entries missing coordinates ────────────
+router.post('/geocode-backfill', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, city, state FROM submissions WHERE latitude IS NULL OR longitude IS NULL'
+    );
+
+    let updated = 0;
+    for (const row of rows) {
+      const coords = await getCoordinates(row.city, row.state).catch(() => null);
+      if (coords) {
+        await pool.query(
+          'UPDATE submissions SET latitude = $1, longitude = $2 WHERE id = $3',
+          [coords.lat, coords.lng, row.id]
+        );
+        updated++;
+      }
+      // Respect Nominatim's 1 req/sec rate limit
+      if (rows.indexOf(row) < rows.length - 1) {
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+    }
+
+    res.json({ success: true, total: rows.length, updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Geocoding backfill failed.' });
   }
 });
 

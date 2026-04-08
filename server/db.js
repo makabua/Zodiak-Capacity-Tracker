@@ -22,9 +22,14 @@ pool.query(`
     available_from TEXT NOT NULL,
     notes         TEXT DEFAULT '',
     status        TEXT DEFAULT 'new',
+    latitude      DOUBLE PRECISION,
+    longitude     DOUBLE PRECISION,
     created_at    TIMESTAMPTZ DEFAULT NOW()
   )
-`).then(() => {
+`).then(async () => {
+  // Add latitude/longitude columns if they don't exist (for existing databases)
+  await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION').catch(() => {});
+  await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION').catch(() => {});
   console.log('Database ready.');
 }).catch((err) => {
   console.error('DB init error:', err);

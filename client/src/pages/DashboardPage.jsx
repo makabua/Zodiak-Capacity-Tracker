@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 import { clearToken } from '../utils/auth'
-import CapacityCard from '../components/CapacityCard'
+import MapView from '../components/MapView'
+import DetailPanel from '../components/DetailPanel'
 
 const TABS = [
   { key: 'all',       label: 'All' },
@@ -18,17 +19,46 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sort, setSort] = useState('date')
   const [search, setSearch] = useState('')
+  const [selectedEntry, setSelectedEntry] = useState(null)
+  const [backfilling, setBackfilling] = useState(false)
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ sort })
     if (statusFilter !== 'all') params.set('status', statusFilter)
     const data = await api.get(`/submissions?${params}`)
-    setEntries(Array.isArray(data) ? data : [])
+    const list = Array.isArray(data) ? data : []
+    setEntries(list)
     setLoading(false)
+
+    // Auto-backfill geocoding for entries without coordinates
+    const needsGeocode = list.some((e) => e.latitude == null || e.longitude == null)
+    if (needsGeocode && !backfilling) {
+      setBackfilling(true)
+      api.post('/submissions/geocode-backfill', {}).then(() => {
+        // Refresh entries to get updated coordinates
+        const p = new URLSearchParams({ sort })
+        if (statusFilter !== 'all') p.set('status', statusFilter)
+        api.get(`/submissions?${p}`).then((d) => {
+          if (Array.isArray(d)) setEntries(d)
+        })
+      }).catch(() => {}).finally(() => setBackfilling(false))
+    }
   }, [statusFilter, sort])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
+
+  // Keep selected entry in sync with entries list
+  useEffect(() => {
+    if (selectedEntry) {
+      const updated = entries.find((e) => e.id === selectedEntry.id)
+      if (updated) {
+        setSelectedEntry(updated)
+      } else {
+        setSelectedEntry(null)
+      }
+    }
+  }, [entries])
 
   function handleLogout() {
     clearToken()
@@ -45,6 +75,11 @@ export default function DashboardPage() {
       )
     : entries
 
+  // For map display: hide archived by default unless explicitly viewing archived tab
+  const mapEntries = statusFilter === 'archived'
+    ? filtered
+    : filtered.map((e) => ({ ...e, _dimmed: e.status === 'archived' }))
+
   // Count per status (from unfiltered entries for tab badges)
   const counts = entries.reduce((acc, e) => {
     acc[e.status] = (acc[e.status] || 0) + 1
@@ -52,10 +87,10 @@ export default function DashboardPage() {
   }, {})
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="h-screen flex flex-col bg-slate-100">
       {/* Top nav */}
-      <header className="bg-blue-900 text-white shadow-lg sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <header className="bg-blue-900 text-white shadow-lg z-20 flex-shrink-0">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-400/30 flex items-center justify-center text-lg select-none">
               🚛
@@ -85,76 +120,86 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <StatCard label="Total" value={entries.length} color="bg-slate-700" />
-          <StatCard label="New" value={counts.new || 0} color="bg-emerald-600" />
-          <StatCard label="Contacted" value={counts.contacted || 0} color="bg-blue-600" />
-          <StatCard label="Archived" value={counts.archived || 0} color="bg-slate-400" />
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-5">
-          {/* Status tabs */}
-          <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1 flex-wrap">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-                  statusFilter === tab.key
-                    ? 'bg-blue-700 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {tab.label}
-                {tab.key !== 'all' && counts[tab.key] ? (
-                  <span className={`ml-1.5 text-xs rounded-full px-1.5 py-0.5 ${statusFilter === tab.key ? 'bg-blue-500' : 'bg-slate-200 text-slate-600'}`}>
-                    {counts[tab.key]}
-                  </span>
-                ) : null}
-              </button>
-            ))}
+      {/* Controls bar */}
+      <div className="bg-white border-b border-slate-200 z-10 flex-shrink-0">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          {/* Summary stats */}
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <StatPill label="Total" value={entries.length} className="bg-slate-700 text-white" />
+            <StatPill label="New" value={counts.new || 0} className="bg-emerald-600 text-white" />
+            <StatPill label="Contacted" value={counts.contacted || 0} className="bg-blue-600 text-white" />
+            <StatPill label="Archived" value={counts.archived || 0} className="bg-slate-400 text-white" />
           </div>
 
-          {/* Sort */}
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-44"
-          >
-            <option value="date">Sort: Date Submitted</option>
-            <option value="location">Sort: Location</option>
-          </select>
+          {/* Filters row */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Status tabs */}
+            <div className="flex gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 flex-wrap">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+                    statusFilter === tab.key
+                      ? 'bg-blue-700 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.key !== 'all' && counts[tab.key] ? (
+                    <span className={`ml-1.5 text-xs rounded-full px-1.5 py-0.5 ${statusFilter === tab.key ? 'bg-blue-500' : 'bg-slate-200 text-slate-600'}`}>
+                      {counts[tab.key]}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
 
-          {/* Search */}
-          <input
-            type="search"
-            placeholder="Search company, city…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+            {/* Sort */}
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-44"
+            >
+              <option value="date">Sort: Date Submitted</option>
+              <option value="location">Sort: Location</option>
+            </select>
+
+            {/* Search */}
+            <input
+              type="search"
+              placeholder="Search company, city…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]"
+            />
+
+            {/* Legend */}
+            <div className="flex items-center gap-3 text-xs text-slate-500 sm:ml-auto">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
+                Open
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
+                Enclosed
+              </span>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mb-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />
-            Open
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />
-            Enclosed
-          </span>
-        </div>
-
-        {/* Grid */}
+      {/* Map area */}
+      <div className="flex-1 relative min-h-0">
         {loading ? (
-          <div className="flex justify-center py-20 text-slate-400">Loading…</div>
+          <div className="flex items-center justify-center h-full text-slate-400">
+            <div className="text-center">
+              <div className="text-4xl mb-2 animate-pulse">🗺️</div>
+              <p className="font-medium">Loading map…</p>
+            </div>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center py-20 text-slate-400">
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
             <div className="text-5xl mb-3 select-none">📭</div>
             <p className="font-medium">No entries found</p>
             {search && (
@@ -164,22 +209,45 @@ export default function DashboardPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((entry) => (
-              <CapacityCard key={entry.id} entry={entry} onUpdate={fetchEntries} />
-            ))}
+          <MapView
+            entries={filtered}
+            onSelect={setSelectedEntry}
+            selectedId={selectedEntry?.id}
+          />
+        )}
+
+        {/* Backfilling indicator */}
+        {backfilling && (
+          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-xs text-slate-500 px-3 py-2 rounded-lg shadow-sm border border-slate-200 z-[500]">
+            Geocoding locations…
           </div>
         )}
-      </main>
+      </div>
+
+      {/* Side panel */}
+      {selectedEntry && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/20 z-[999] sm:bg-transparent"
+            onClick={() => setSelectedEntry(null)}
+          />
+          <DetailPanel
+            entry={selectedEntry}
+            onClose={() => setSelectedEntry(null)}
+            onUpdate={fetchEntries}
+          />
+        </>
+      )}
     </div>
   )
 }
 
-function StatCard({ label, value, color }) {
+function StatPill({ label, value, className }) {
   return (
-    <div className={`${color} rounded-xl text-white px-4 py-3 shadow-sm`}>
-      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{label}</p>
-      <p className="text-3xl font-extrabold mt-0.5">{value}</p>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${className}`}>
+      <span className="opacity-80">{label}</span>
+      <span className="text-lg font-extrabold">{value}</span>
     </div>
   )
 }

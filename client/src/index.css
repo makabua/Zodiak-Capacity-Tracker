@@ -7,3 +7,29 @@
     @apply bg-slate-50 text-slate-800 antialiased;
   }
 }
+
+@layer utilities {
+  .animate-slide-in {
+    animation: slideIn 0.25s ease-out;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Leaflet popup overrides for Tailwind compatibility */
+.leaflet-popup-content-wrapper {
+  @apply rounded-xl shadow-lg border border-slate-200;
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+}
+.leaflet-popup-tip {
+  @apply shadow-sm;
+}
