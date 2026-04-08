@@ -18,9 +18,9 @@ function buildTransporter() {
 
 // ── Public: submit capacity ──────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { carrier_name, company_name, trucks_available, truck_type, city, state, available_from, notes } = req.body;
+  const { carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes } = req.body;
 
-  if (!carrier_name || !company_name || !trucks_available || !truck_type || !city || !state || !available_from) {
+  if (!carrier_name || !company_name || !phone || !email || !trucks_available || !truck_type || !city || !state || !available_from) {
     return res.status(400).json({ error: 'All required fields must be filled out.' });
   }
   if (!['open', 'enclosed'].includes(truck_type)) {
@@ -32,9 +32,9 @@ router.post('/', async (req, res) => {
     const coords = await getCoordinates(city, state).catch(() => null);
 
     const { rows } = await pool.query(
-      `INSERT INTO submissions (carrier_name, company_name, trucks_available, truck_type, city, state, available_from, notes, latitude, longitude)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [carrier_name, company_name, parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '',
+      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes, latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '',
        coords ? coords.lat : null, coords ? coords.lng : null]
     );
 
@@ -51,6 +51,8 @@ router.post('/', async (req, res) => {
             <table style="border-collapse:collapse;width:100%">
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Carrier Name</td><td style="padding:6px 12px">${carrier_name}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Company</td><td style="padding:6px 12px">${company_name}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Phone</td><td style="padding:6px 12px">${phone || '—'}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Email</td><td style="padding:6px 12px">${email || '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Trucks Available</td><td style="padding:6px 12px">${trucks_available}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px">${truck_type}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Location</td><td style="padding:6px 12px">${city}, ${state}</td></tr>

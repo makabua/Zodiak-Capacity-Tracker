@@ -65,6 +65,20 @@ export default function DetailPanel({ entry, onClose, onUpdate }) {
           </span>
         </div>
 
+        {/* Contact info */}
+        <div className="grid grid-cols-2 gap-4">
+          {entry.phone && (
+            <Detail label="Phone">
+              <a href={`tel:${entry.phone}`} className="text-sm text-blue-700 hover:underline">{entry.phone}</a>
+            </Detail>
+          )}
+          {entry.email && (
+            <Detail label="Email">
+              <a href={`mailto:${entry.email}`} className="text-sm text-blue-700 hover:underline break-all">{entry.email}</a>
+            </Detail>
+          )}
+        </div>
+
         {/* Details grid */}
         <div className="grid grid-cols-2 gap-4">
           <Detail label="Truck Type">

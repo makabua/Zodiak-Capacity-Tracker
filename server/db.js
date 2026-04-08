@@ -15,6 +15,8 @@ pool.query(`
     id            SERIAL PRIMARY KEY,
     carrier_name  TEXT NOT NULL,
     company_name  TEXT NOT NULL,
+    phone         TEXT DEFAULT '',
+    email         TEXT DEFAULT '',
     trucks_available INTEGER NOT NULL,
     truck_type    TEXT NOT NULL,
     city          TEXT NOT NULL,
@@ -28,6 +30,8 @@ pool.query(`
   )
 `).then(async () => {
   // Add latitude/longitude columns if they don't exist (for existing databases)
+  await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT \'\'').catch(() => {});
+  await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT \'\'').catch(() => {});
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION').catch(() => {});
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION').catch(() => {});
   console.log('Database ready.');

@@ -12,6 +12,8 @@ const US_STATES = [
 const INITIAL = {
   carrier_name: '',
   company_name: '',
+  phone: '',
+  email: '',
   trucks_available: '',
   truck_type: 'open',
   city: '',
@@ -105,6 +107,30 @@ export default function SubmitPage() {
                     placeholder="Smith Trucking LLC"
                     value={form.company_name}
                     onChange={(e) => set('company_name', e.target.value)}
+                    required
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+
+              {/* Row: Phone + Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Phone Number" required>
+                  <input
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                    value={form.phone}
+                    onChange={(e) => set('phone', e.target.value)}
+                    required
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Email" required>
+                  <input
+                    type="email"
+                    placeholder="john@smithtrucking.com"
+                    value={form.email}
+                    onChange={(e) => set('email', e.target.value)}
                     required
                     className={inputCls}
                   />
