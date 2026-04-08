@@ -81,7 +81,7 @@ function FitBounds({ entries }) {
 
     if (coords.length > 0 && entries.length !== prevCountRef.current) {
       const bounds = L.latLngBounds(coords)
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 })
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 5 })
     }
     prevCountRef.current = entries.length
   }, [entries, map])
