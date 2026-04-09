@@ -190,7 +190,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Map area */}
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative" style={{ minHeight: '400px' }}>
         {loading ? (
           <div className="flex items-center justify-center h-full text-slate-400">
             <div className="text-center">

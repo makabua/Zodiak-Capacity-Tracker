@@ -23,7 +23,16 @@
   }
 }
 
-/* Leaflet popup overrides for Tailwind compatibility */
+/* Leaflet + Tailwind compatibility — Tailwind preflight breaks tile rendering */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+.leaflet-container {
+  font-family: inherit;
+}
+
+/* Leaflet popup overrides */
 .leaflet-popup-content-wrapper {
   @apply rounded-xl shadow-lg border border-slate-200;
 }

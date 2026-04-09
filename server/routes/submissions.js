@@ -28,15 +28,19 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    // Geocode city/state (best-effort, non-blocking for response)
-    const coords = await getCoordinates(city, state).catch(() => null);
-
     const { rows } = await pool.query(
-      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes, latitude, longitude)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '',
-       coords ? coords.lat : null, coords ? coords.lng : null]
+      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '']
     );
+
+    // Geocode in background — don't block the response
+    getCoordinates(city, state).then((coords) => {
+      if (coords) {
+        pool.query('UPDATE submissions SET latitude = $1, longitude = $2 WHERE id = $3',
+          [coords.lat, coords.lng, rows[0].id]).catch(() => {});
+      }
+    }).catch(() => {});
 
     // Email notification (best-effort)
     const transporter = buildTransporter();
