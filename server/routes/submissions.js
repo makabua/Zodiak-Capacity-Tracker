@@ -18,7 +18,7 @@ function buildTransporter() {
 
 // ── Public: submit capacity ──────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes } = req.body;
+  const { carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes } = req.body;
 
   if (!carrier_name || !company_name || !phone || !email || !trucks_available || !truck_type || !city || !state || !available_from) {
     return res.status(400).json({ error: 'All required fields must be filled out.' });
@@ -28,10 +28,11 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    const rate = rate_per_mile ? parseFloat(rate_per_mile) : null;
     const { rows } = await pool.query(
-      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, notes || '']
+      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, rate, notes || '']
     );
 
     // Geocode in background — don't block the response
@@ -61,6 +62,7 @@ router.post('/', async (req, res) => {
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px">${truck_type}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Location</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Available From</td><td style="padding:6px 12px">${available_from}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Target Rate</td><td style="padding:6px 12px">${rate ? `$${rate}/mile` : '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Notes</td><td style="padding:6px 12px">${notes || '—'}</td></tr>
             </table>
           </div>`,

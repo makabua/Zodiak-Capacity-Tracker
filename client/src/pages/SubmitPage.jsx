@@ -19,6 +19,7 @@ const INITIAL = {
   city: '',
   state: '',
   available_from: '',
+  rate_per_mile: '',
   notes: '',
 }
 
@@ -197,16 +198,32 @@ export default function SubmitPage() {
                 </Field>
               </div>
 
-              {/* Available From */}
-              <Field label="Available From" required>
-                <input
-                  type="date"
-                  value={form.available_from}
-                  onChange={(e) => set('available_from', e.target.value)}
-                  required
-                  className={inputCls}
-                />
-              </Field>
+              {/* Available From + Rate */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Available From" required>
+                  <input
+                    type="date"
+                    value={form.available_from}
+                    onChange={(e) => set('available_from', e.target.value)}
+                    required
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Target Rate ($/mile)">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="2.50"
+                      value={form.rate_per_mile}
+                      onChange={(e) => set('rate_per_mile', e.target.value)}
+                      className={inputCls + ' pl-6'}
+                    />
+                  </div>
+                </Field>
+              </div>
 
               {/* Notes */}
               <Field label="Notes">

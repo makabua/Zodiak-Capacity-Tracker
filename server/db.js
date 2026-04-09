@@ -32,6 +32,7 @@ pool.query(`
   // Add latitude/longitude columns if they don't exist (for existing databases)
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT \'\'').catch(() => {});
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT \'\'').catch(() => {});
+  await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS rate_per_mile NUMERIC(10,2)').catch(() => {});
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION').catch(() => {});
   await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION').catch(() => {});
   console.log('Database ready.');

@@ -95,6 +95,11 @@ export default function DetailPanel({ entry, onClose, onUpdate }) {
           <Detail label="Available From">
             <span className="text-sm text-slate-700">{fmt(entry.available_from)}</span>
           </Detail>
+          {entry.rate_per_mile && (
+            <Detail label="Target Rate">
+              <span className="text-sm font-semibold text-green-700">${parseFloat(entry.rate_per_mile).toFixed(2)}/mile</span>
+            </Detail>
+          )}
         </div>
 
         {/* Notes */}
