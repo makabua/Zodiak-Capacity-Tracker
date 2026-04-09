@@ -10,13 +10,18 @@ const isPrivateNetwork = dbUrl.includes('.railway.internal');
 
 const poolConfig = {
   connectionString: dbUrl,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000,
 };
 
-// Railway private network doesn't use SSL; public connections need it
-if (!isPrivateNetwork && !dbUrl.includes('sslmode=disable')) {
+// Railway private network doesn't use SSL — explicitly disable to prevent
+// the pg driver from attempting an SSL handshake that hangs and times out
+if (isPrivateNetwork) {
+  poolConfig.ssl = false;
+} else if (!dbUrl.includes('sslmode=disable')) {
   poolConfig.ssl = { rejectUnauthorized: false };
 }
+
+console.log(`DB config: private_network=${isPrivateNetwork}, ssl=${JSON.stringify(poolConfig.ssl)}, timeout=${poolConfig.connectionTimeoutMillis}ms`);
 
 const pool = new Pool(poolConfig);
 
