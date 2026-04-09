@@ -227,9 +227,9 @@ export default function SubmitPage() {
                 </Field>
               </div>
 
-              {/* Row: City + State (carrier home base) */}
+              {/* Row: City + State */}
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Home Base City" required>
+                <Field label="Current City" required>
                   <input
                     type="text"
                     placeholder="Dallas"
@@ -239,7 +239,7 @@ export default function SubmitPage() {
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Home Base State" required>
+                <Field label="State" required>
                   <select
                     value={form.state}
                     onChange={(e) => set('state', e.target.value)}

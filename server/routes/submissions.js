@@ -88,7 +88,7 @@ router.post('/', async (req, res) => {
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Phone</td><td style="padding:6px 12px">${phone || '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Email</td><td style="padding:6px 12px">${email || '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Trucks Available</td><td style="padding:6px 12px">${trucks_available}</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Home Base</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Location</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Available From</td><td style="padding:6px 12px">${available_from}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Notes</td><td style="padding:6px 12px">${notes || '—'}</td></tr>
               ${driverRows}
