@@ -54,6 +54,7 @@ async function initDb(retries = 10, delay = 2000) {
       await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS rate_per_mile NUMERIC(10,2)').catch(() => {});
       await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION').catch(() => {});
       await pool.query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION').catch(() => {});
+      await pool.query("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS drivers JSONB DEFAULT '[]'").catch(() => {});
 
       console.log(`Database ready (connected on attempt ${attempt}).`);
       return;

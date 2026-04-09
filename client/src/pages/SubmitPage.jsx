@@ -9,6 +9,13 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
 ]
 
+const EMPTY_DRIVER = {
+  name: '',
+  truck_type: 'open',
+  states: [],
+  rate_per_mile: '',
+}
+
 const INITIAL = {
   carrier_name: '',
   company_name: '',
@@ -21,6 +28,7 @@ const INITIAL = {
   available_from: '',
   rate_per_mile: '',
   notes: '',
+  drivers: [{ ...EMPTY_DRIVER }],
 }
 
 export default function SubmitPage() {
@@ -32,18 +40,74 @@ export default function SubmitPage() {
     setForm((f) => ({ ...f, [field]: value }))
   }
 
+  function setDriver(index, field, value) {
+    setForm((f) => {
+      const drivers = f.drivers.map((d, i) =>
+        i === index ? { ...d, [field]: value } : d
+      )
+      return { ...f, drivers }
+    })
+  }
+
+  function toggleDriverState(index, st) {
+    setForm((f) => {
+      const drivers = f.drivers.map((d, i) => {
+        if (i !== index) return d
+        const states = d.states.includes(st)
+          ? d.states.filter((s) => s !== st)
+          : [...d.states, st]
+        return { ...d, states }
+      })
+      return { ...f, drivers }
+    })
+  }
+
+  function addDriver() {
+    setForm((f) => ({ ...f, drivers: [...f.drivers, { ...EMPTY_DRIVER }] }))
+  }
+
+  function removeDriver(index) {
+    setForm((f) => ({
+      ...f,
+      drivers: f.drivers.filter((_, i) => i !== index),
+    }))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setStatus('submitting')
     setErrorMsg('')
+
+    // Validate drivers
+    for (let i = 0; i < form.drivers.length; i++) {
+      const d = form.drivers[i]
+      if (!d.name.trim()) {
+        setErrorMsg(`Driver ${i + 1}: Please enter a name.`)
+        setStatus('error')
+        return
+      }
+      if (d.states.length === 0) {
+        setErrorMsg(`Driver ${i + 1} (${d.name}): Please select at least one operating state.`)
+        setStatus('error')
+        return
+      }
+    }
+
     try {
-      const res = await api.post('/submissions', form)
+      const payload = {
+        ...form,
+        drivers: form.drivers.map((d) => ({
+          ...d,
+          rate_per_mile: d.rate_per_mile ? parseFloat(d.rate_per_mile) : null,
+        })),
+      }
+      const res = await api.post('/submissions', payload)
       if (res?.error) {
         setErrorMsg(res.error)
         setStatus('error')
       } else {
         setStatus('success')
-        setForm(INITIAL)
+        setForm({ ...INITIAL, drivers: [{ ...EMPTY_DRIVER }] })
       }
     } catch {
       setErrorMsg('Network error — please try again.')
@@ -138,7 +202,7 @@ export default function SubmitPage() {
                 </Field>
               </div>
 
-              {/* Row: Trucks + Type */}
+              {/* Row: Trucks Available */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Trucks Available" required>
                   <input
@@ -152,28 +216,20 @@ export default function SubmitPage() {
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Truck Type" required>
-                  <div className="flex gap-3 mt-1">
-                    {['open', 'enclosed'].map((t) => (
-                      <label key={t} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="truck_type"
-                          value={t}
-                          checked={form.truck_type === t}
-                          onChange={() => set('truck_type', t)}
-                          className="accent-blue-700"
-                        />
-                        <span className="text-sm font-medium text-slate-700 capitalize">{t}</span>
-                      </label>
-                    ))}
-                  </div>
+                <Field label="Available From" required>
+                  <input
+                    type="date"
+                    value={form.available_from}
+                    onChange={(e) => set('available_from', e.target.value)}
+                    required
+                    className={inputCls}
+                  />
                 </Field>
               </div>
 
-              {/* Row: City + State */}
+              {/* Row: City + State (carrier home base) */}
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Current City" required>
+                <Field label="Home Base City" required>
                   <input
                     type="text"
                     placeholder="Dallas"
@@ -183,7 +239,7 @@ export default function SubmitPage() {
                     className={inputCls}
                   />
                 </Field>
-                <Field label="State" required>
+                <Field label="Home Base State" required>
                   <select
                     value={form.state}
                     onChange={(e) => set('state', e.target.value)}
@@ -198,31 +254,115 @@ export default function SubmitPage() {
                 </Field>
               </div>
 
-              {/* Available From + Rate */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Available From" required>
-                  <input
-                    type="date"
-                    value={form.available_from}
-                    onChange={(e) => set('available_from', e.target.value)}
-                    required
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Target Rate ($/mile)">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="2.50"
-                      value={form.rate_per_mile}
-                      onChange={(e) => set('rate_per_mile', e.target.value)}
-                      className={inputCls + ' pl-6'}
-                    />
+              {/* ── Driver Sections ────────────────────────────────── */}
+              <div className="border-t border-slate-200 pt-5 mt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Drivers</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Add each driver with their routes and rate</p>
                   </div>
-                </Field>
+                  <button
+                    type="button"
+                    onClick={addDriver}
+                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+                  >
+                    + Add Driver
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {form.drivers.map((driver, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 relative">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                          Driver {idx + 1}
+                        </span>
+                        {form.drivers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeDriver(idx)}
+                            className="text-xs text-red-400 hover:text-red-600 font-medium transition"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Driver Name + Truck Type */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Field label="Driver Name" required>
+                          <input
+                            type="text"
+                            placeholder="e.g. Mike Johnson"
+                            value={driver.name}
+                            onChange={(e) => setDriver(idx, 'name', e.target.value)}
+                            required
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="Truck Type" required>
+                          <div className="flex gap-3 mt-1">
+                            {['open', 'enclosed'].map((t) => (
+                              <label key={t} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`truck_type_${idx}`}
+                                  value={t}
+                                  checked={driver.truck_type === t}
+                                  onChange={() => setDriver(idx, 'truck_type', t)}
+                                  className="accent-blue-700"
+                                />
+                                <span className="text-sm font-medium text-slate-700 capitalize">{t}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </Field>
+                      </div>
+
+                      {/* Operating States */}
+                      <Field label="Operating States" required>
+                        <p className="text-xs text-slate-400 mb-1.5">Select all states this driver covers</p>
+                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 bg-white rounded-lg border border-slate-200">
+                          {US_STATES.map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => toggleDriverState(idx, s)}
+                              className={`text-xs font-medium px-2 py-1 rounded-md transition ${
+                                driver.states.includes(s)
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                        {driver.states.length > 0 && (
+                          <p className="text-xs text-blue-600 mt-1.5 font-medium">
+                            Selected: {driver.states.join(', ')}
+                          </p>
+                        )}
+                      </Field>
+
+                      {/* Preferred Rate */}
+                      <Field label="Preferred Rate ($/mile)">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="2.50"
+                            value={driver.rate_per_mile}
+                            onChange={(e) => setDriver(idx, 'rate_per_mile', e.target.value)}
+                            className={inputCls + ' pl-6'}
+                          />
+                        </div>
+                      </Field>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Notes */}

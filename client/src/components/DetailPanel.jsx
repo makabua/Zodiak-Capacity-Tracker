@@ -11,6 +11,12 @@ const TYPE_BADGE = {
   enclosed: 'bg-amber-100 text-amber-700',
 }
 
+function parseDrivers(drivers) {
+  if (!drivers) return []
+  if (Array.isArray(drivers)) return drivers
+  try { return JSON.parse(drivers) } catch { return [] }
+}
+
 function fmt(dateStr) {
   if (!dateStr) return '—'
   const [y, m, d] = dateStr.split('-')
@@ -101,6 +107,45 @@ export default function DetailPanel({ entry, onClose, onUpdate }) {
             </Detail>
           )}
         </div>
+
+        {/* Drivers */}
+        {entry.drivers && parseDrivers(entry.drivers).length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+              Drivers ({parseDrivers(entry.drivers).length})
+            </p>
+            <div className="space-y-3">
+              {parseDrivers(entry.drivers).map((driver, idx) => (
+                <div key={idx} className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-800">{driver.name}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      driver.truck_type === 'open' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {driver.truck_type}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-400 mb-1">Operating States</p>
+                    <div className="flex flex-wrap gap-1">
+                      {driver.states.map((s) => (
+                        <span key={s} className="text-xs bg-blue-50 text-blue-700 font-medium px-1.5 py-0.5 rounded">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {driver.rate_per_mile && (
+                    <div>
+                      <p className="text-xs font-medium text-slate-400">Preferred Rate</p>
+                      <span className="text-sm font-semibold text-green-700">${parseFloat(driver.rate_per_mile).toFixed(2)}/mile</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Notes */}
         {entry.notes && (

@@ -18,21 +18,43 @@ function buildTransporter() {
 
 // ── Public: submit capacity ──────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes } = req.body;
+  const { carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes, drivers } = req.body;
 
-  if (!carrier_name || !company_name || !phone || !email || !trucks_available || !truck_type || !city || !state || !available_from) {
+  if (!carrier_name || !company_name || !phone || !email || !trucks_available || !city || !state || !available_from) {
     return res.status(400).json({ error: 'All required fields must be filled out.' });
   }
-  if (!['open', 'enclosed'].includes(truck_type)) {
-    return res.status(400).json({ error: 'Invalid truck type.' });
+
+  // Validate drivers array
+  const driverList = Array.isArray(drivers) ? drivers : [];
+  for (let i = 0; i < driverList.length; i++) {
+    const d = driverList[i];
+    if (!d.name || !d.name.trim()) {
+      return res.status(400).json({ error: `Driver ${i + 1}: Name is required.` });
+    }
+    if (!Array.isArray(d.states) || d.states.length === 0) {
+      return res.status(400).json({ error: `Driver ${i + 1} (${d.name}): At least one operating state is required.` });
+    }
+    if (d.truck_type && !['open', 'enclosed'].includes(d.truck_type)) {
+      return res.status(400).json({ error: `Driver ${i + 1} (${d.name}): Invalid truck type.` });
+    }
   }
+
+  // Determine overall truck_type from first driver or fallback
+  const effectiveTruckType = driverList.length > 0 ? driverList[0].truck_type || 'open' : (truck_type || 'open');
 
   try {
     const rate = rate_per_mile ? parseFloat(rate_per_mile) : null;
+    const sanitizedDrivers = driverList.map((d) => ({
+      name: d.name.trim(),
+      truck_type: d.truck_type || 'open',
+      states: d.states,
+      rate_per_mile: d.rate_per_mile ? parseFloat(d.rate_per_mile) : null,
+    }));
+
     const { rows } = await pool.query(
-      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), truck_type, city, state, available_from, rate, notes || '']
+      `INSERT INTO submissions (carrier_name, company_name, phone, email, trucks_available, truck_type, city, state, available_from, rate_per_mile, notes, drivers)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [carrier_name, company_name, phone || '', email || '', parseInt(trucks_available, 10), effectiveTruckType, city, state, available_from, rate, notes || '', JSON.stringify(sanitizedDrivers)]
     );
 
     // Geocode in background — don't block the response
@@ -46,10 +68,17 @@ router.post('/', async (req, res) => {
     // Email notification (best-effort)
     const transporter = buildTransporter();
     if (transporter) {
+      const driverRows = sanitizedDrivers.map((d, i) => `
+        <tr><td colspan="2" style="padding:8px 12px;font-weight:bold;background:#dbeafe;color:#1e40af">Driver ${i + 1}: ${d.name}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px">${d.truck_type}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Operating States</td><td style="padding:6px 12px">${d.states.join(', ')}</td></tr>
+        <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Preferred Rate</td><td style="padding:6px 12px">${d.rate_per_mile ? `$${d.rate_per_mile}/mile` : '—'}</td></tr>
+      `).join('');
+
       transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to: 'jd@zodiaktls.com',
-        subject: `New Capacity — ${company_name} (${trucks_available} ${truck_type} truck${trucks_available > 1 ? 's' : ''})`,
+        subject: `New Capacity — ${company_name} (${trucks_available} truck${trucks_available > 1 ? 's' : ''}, ${sanitizedDrivers.length} driver${sanitizedDrivers.length > 1 ? 's' : ''})`,
         html: `
           <div style="font-family:sans-serif;max-width:560px">
             <h2 style="color:#1d4ed8">New Capacity Submission</h2>
@@ -59,11 +88,10 @@ router.post('/', async (req, res) => {
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Phone</td><td style="padding:6px 12px">${phone || '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Email</td><td style="padding:6px 12px">${email || '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Trucks Available</td><td style="padding:6px 12px">${trucks_available}</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Truck Type</td><td style="padding:6px 12px">${truck_type}</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Location</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
+              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Home Base</td><td style="padding:6px 12px">${city}, ${state}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Available From</td><td style="padding:6px 12px">${available_from}</td></tr>
-              <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Target Rate</td><td style="padding:6px 12px">${rate ? `$${rate}/mile` : '—'}</td></tr>
               <tr><td style="padding:6px 12px;font-weight:bold;background:#f1f5f9">Notes</td><td style="padding:6px 12px">${notes || '—'}</td></tr>
+              ${driverRows}
             </table>
           </div>`,
       }).catch((err) => console.error('[email] failed:', err.message));
