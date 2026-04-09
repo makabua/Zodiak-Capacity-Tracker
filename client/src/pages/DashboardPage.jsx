@@ -20,29 +20,19 @@ export default function DashboardPage() {
   const [sort, setSort] = useState('date')
   const [search, setSearch] = useState('')
   const [selectedEntry, setSelectedEntry] = useState(null)
-  const [backfilling, setBackfilling] = useState(false)
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ sort })
-    if (statusFilter !== 'all') params.set('status', statusFilter)
-    const data = await api.get(`/submissions?${params}`)
-    const list = Array.isArray(data) ? data : []
-    setEntries(list)
-    setLoading(false)
-
-    // Auto-backfill geocoding for entries without coordinates
-    const needsGeocode = list.some((e) => e.latitude == null || e.longitude == null)
-    if (needsGeocode && !backfilling) {
-      setBackfilling(true)
-      api.post('/submissions/geocode-backfill', {}).then(() => {
-        // Refresh entries to get updated coordinates
-        const p = new URLSearchParams({ sort })
-        if (statusFilter !== 'all') p.set('status', statusFilter)
-        api.get(`/submissions?${p}`).then((d) => {
-          if (Array.isArray(d)) setEntries(d)
-        })
-      }).catch(() => {}).finally(() => setBackfilling(false))
+    try {
+      const params = new URLSearchParams({ sort })
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      const data = await api.get(`/submissions?${params}`)
+      const list = Array.isArray(data) ? data : []
+      setEntries(list)
+    } catch {
+      setEntries([])
+    } finally {
+      setLoading(false)
     }
   }, [statusFilter, sort])
 
@@ -216,12 +206,6 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Backfilling indicator */}
-        {backfilling && (
-          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-xs text-slate-500 px-3 py-2 rounded-lg shadow-sm border border-slate-200 z-[500]">
-            Geocoding locations…
-          </div>
-        )}
       </div>
 
       {/* Side panel */}
