@@ -1,197 +1,132 @@
-# Zodiak Capacity Tracker
+# Carrier Management
 
-A full-stack web app for collecting carrier capacity submissions and reviewing them on a private dashboard.
+A lightweight carrier management web app for trucking / auto-transport dispatch operations.
+Track carrier details, contacts, lanes, historical loads, and notes — all from one place.
 
-- **Public form** — carriers submit their available trucks, location, and availability.
-- **Private dashboard** — password-protected view of all submissions with status management (new → contacted → archived).
+Designed to be embedded later into a larger Dispatch Command Center, so the API
+is kept clean, REST-y, and JSON-only from day one.
 
----
+## Stack
 
-## Tech Stack
-
-| Layer     | Technology |
-|-----------|------------|
+| Layer     | Tech |
+|-----------|------|
 | Backend   | Node.js + Express |
-| Database  | SQLite (via `better-sqlite3`) |
-| Frontend  | React 18 + Vite + Tailwind CSS |
-| Auth      | JWT (`jsonwebtoken`) + bcrypt |
-| Email     | Nodemailer (SMTP) |
+| Database  | SQLite via `better-sqlite3` |
+| Frontend  | Vanilla JS, single HTML file served by Express |
+| Deployment| Railway (`railway.json`) |
 
----
-
-## Local Development
-
-### 1. Prerequisites
-
-- Node.js 18+
-- npm 9+
-
-### 2. Clone & install
-
-```bash
-git clone <repo-url>
-cd zodiak-capacity-tracker
-
-# Install backend dependencies
-npm install
-
-# Install frontend dependencies
-cd client && npm install && cd ..
-```
-
-### 3. Configure environment variables
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in:
-
-| Variable | Description |
-|----------|-------------|
-| `JWT_SECRET` | Any long random string |
-| `DASHBOARD_PASSWORD_HASH` | Bcrypt hash of your chosen password (see below) |
-| `SMTP_HOST` | Your SMTP server host |
-| `SMTP_PORT` | Usually `587` (TLS) or `465` (SSL) |
-| `SMTP_SECURE` | `true` for port 465, `false` for 587 |
-| `SMTP_USER` | SMTP username / email address |
-| `SMTP_PASS` | SMTP password or App Password |
-| `SMTP_FROM` | "From" display name and email |
-
-### 4. Generate your dashboard password hash
-
-```bash
-npm run hash -- yourpassword
-```
-
-Copy the output line into your `.env` file:
+## Project structure
 
 ```
-DASHBOARD_PASSWORD_HASH=$2b$10$...
-```
-
-### 5. Start in development mode
-
-```bash
-npm run dev
-```
-
-This starts:
-- Backend API on `http://localhost:3001`
-- Frontend dev server on `http://localhost:5173` (proxies `/api` to the backend)
-
-Open `http://localhost:5173` to see the submission form.  
-Open `http://localhost:5173/dashboard` to access the dashboard (login required).
-
----
-
-## Email Setup
-
-### Gmail (recommended)
-
-1. Enable 2-Step Verification on your Google account.
-2. Go to **Google Account → Security → App Passwords**.
-3. Create an App Password for "Mail".
-4. Use those settings in `.env`:
-
-```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=you@gmail.com
-SMTP_PASS=xxxx-xxxx-xxxx-xxxx   # 16-char App Password
-SMTP_FROM=Zodiak Capacity Tracker <you@gmail.com>
-```
-
-> If SMTP is not configured, submissions still save to the database — the email notification is simply skipped.
-
----
-
-## Production Build (local preview)
-
-```bash
-npm run build          # builds client/dist
-NODE_ENV=production node server/index.js
-```
-
-The Express server will serve the built frontend at `http://localhost:3001`.
-
----
-
-## Deploy to Railway
-
-1. Push the repo to GitHub.
-2. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**.
-3. Select your repository.
-4. Railway auto-detects Node.js. Set these under **Variables**:
-   - All variables from `.env.example` with real values
-   - `NODE_ENV=production`
-5. Set the **Build Command**:
-   ```
-   npm run build
-   ```
-6. Set the **Start Command**:
-   ```
-   npm start
-   ```
-7. For persistent SQLite storage, add a **Volume** mounted at `/app/data`.
-
----
-
-## Deploy to Render
-
-1. Push the repo to GitHub.
-2. Go to [render.com](https://render.com) → **New → Web Service**.
-3. Connect your GitHub repo and configure:
-   - **Build Command:** `npm install && npm run build`
-   - **Start Command:** `npm start`
-   - **Environment:** Node
-4. Add all environment variables from `.env.example` under **Environment Variables**.
-5. For persistent SQLite, go to **Disks** and add a disk mounted at `/app/data`.
-
----
-
-## Project Structure
-
-```
-zodiak-capacity-tracker/
-├── server/
-│   ├── index.js              # Express app entry point
-│   ├── db.js                 # SQLite connection + schema
-│   ├── middleware/
-│   │   └── auth.js           # JWT verification middleware
-│   └── routes/
-│       ├── auth.js           # POST /api/auth/login
-│       └── submissions.js    # CRUD for capacity submissions
-├── client/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── pages/
-│   │   │   ├── SubmitPage.jsx    # Public submission form
-│   │   │   ├── LoginPage.jsx     # Dashboard login
-│   │   │   └── DashboardPage.jsx # Private capacity board
-│   │   ├── components/
-│   │   │   ├── CapacityCard.jsx  # Individual submission card
-│   │   │   └── ProtectedRoute.jsx
-│   │   └── utils/
-│   │       ├── api.js        # Fetch wrapper
-│   │       └── auth.js       # Token helpers
-│   └── vite.config.js
-├── scripts/
-│   └── generate-hash.js      # Password hash utility
-├── data/                     # SQLite database (gitignored)
+.
+├── server.js              # Express entry point
+├── db.js                  # SQLite connection + schema init
+├── routes/
+│   ├── carriers.js
+│   ├── contacts.js
+│   ├── lanes.js
+│   ├── loads.js
+│   └── notes.js
+├── public/
+│   └── index.html         # Single-file SPA (list + detail views)
+├── data/                  # SQLite db location (gitignored)
+├── railway.json
 ├── .env.example
 └── package.json
 ```
 
----
+## Running locally
 
-## API Reference
+```bash
+npm install
+cp .env.example .env
+npm start
+```
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/auth/login` | No | Get JWT token |
-| `POST` | `/api/submissions` | No | Submit new capacity |
-| `GET` | `/api/submissions` | Yes | List all (filter: `?status=new`, sort: `?sort=location`) |
-| `PATCH` | `/api/submissions/:id/status` | Yes | Update status (`new`/`contacted`/`archived`) |
-| `DELETE` | `/api/submissions/:id` | Yes | Permanently delete a submission |
+Then visit http://localhost:3000
+
+The SQLite database is created automatically at `./data/carriers.db` on first boot.
+
+## Environment
+
+| Var       | Default                  | Description |
+|-----------|--------------------------|-------------|
+| `PORT`    | `3000`                   | Port Express listens on (Railway overrides) |
+| `DB_PATH` | `./data/carriers.db`     | SQLite db file path. In production, point this at a mounted volume. |
+
+## API
+
+All endpoints return JSON.
+
+### Carriers
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET`    | `/api/carriers`          | List. Query params: `q` (search name/MC#/contact name), `status`, `equipment`. Includes `lane_count`, `load_count`, `contact_count`. |
+| `POST`   | `/api/carriers`          | Create |
+| `GET`    | `/api/carriers/:id`      | Detail (includes nested `contacts`, `lanes`, `loads`, `notes`) |
+| `PUT`    | `/api/carriers/:id`      | Update |
+| `DELETE` | `/api/carriers/:id`      | Delete (cascades to all child records) |
+
+### Contacts
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET`    | `/api/carriers/:id/contacts` | List |
+| `POST`   | `/api/carriers/:id/contacts` | Create |
+| `PUT`    | `/api/contacts/:id`          | Update |
+| `DELETE` | `/api/contacts/:id`          | Delete |
+
+### Lanes
+| Method | Path |
+|--------|------|
+| `GET`    | `/api/carriers/:id/lanes` |
+| `POST`   | `/api/carriers/:id/lanes` |
+| `DELETE` | `/api/lanes/:id` |
+
+### Loads
+| Method | Path |
+|--------|------|
+| `GET`    | `/api/carriers/:id/loads` |
+| `POST`   | `/api/carriers/:id/loads` |
+| `PUT`    | `/api/loads/:id` |
+| `DELETE` | `/api/loads/:id` |
+
+### Notes
+| Method | Path |
+|--------|------|
+| `GET`    | `/api/carriers/:id/notes` |
+| `POST`   | `/api/carriers/:id/notes` |
+| `DELETE` | `/api/notes/:id` |
+
+### Other
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/health` | Health probe — returns `{status:"ok", ...}` |
+
+## Data model
+
+- **carriers** — `id, name, mc_number, dot_number, equipment_type (Enclosed/Open/Flatbed/Hotshot/Other), price_per_mile, status (Active/Watch/Blocked), insurance_expiry, created_at, updated_at`
+- **contacts** — `id, carrier_id, name, role, phone, email`
+- **lanes** — `id, carrier_id, origin, destination`
+- **loads** — `id, carrier_id, load_number, date, origin, destination, outcome (Completed/TONU/Issue), notes`
+- **carrier_notes** — `id, carrier_id, note, created_at`
+
+All child tables have `ON DELETE CASCADE` foreign keys back to `carriers`.
+
+## Deploying to Railway
+
+1. Push the repo to GitHub.
+2. On [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**.
+3. Add a **Volume** mounted at `/data` for persistent SQLite storage.
+4. Set env vars:
+   - `DB_PATH=/data/carriers.db`
+   - (Railway sets `PORT` automatically.)
+5. Deploy. The `railway.json` config uses `/health` as the healthcheck.
+
+## Frontend notes
+
+The single-file SPA lives at `public/index.html`. It uses hash-based routing:
+
+- `#/` — carrier list with search & filters
+- `#/carrier/:id` — detail view (info, contacts, lanes, loads, notes)
+
+It respects `prefers-color-scheme` and is dark-by-default, desktop-first but usable on mobile.
